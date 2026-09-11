@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indian Gold Import Parity Engine</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased selection:bg-amber-500 selection:text-black">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const TROY_OUNCE_IN_GRAMS = 31.1034768;
+    const PURITY_MULTIPLIERS = { '24K': 0.999, '22K': 0.916, '18K': 0.750, '14K': 0.585 };
+
+    const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
+    const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(val);
+
+    function App() {
+      const [spotOz, setSpotOz] = useState(2680);
+      const [fxRate, setFxRate] = useState(85.50);
+      const [bcdPct, setBcdPct] = useState(5.0);
+      const [aidcPct, setAidcPct] = useState(1.0);
+      const [gstPct, setGstPct] = useState(3.0);
+      const [premiumPct, setPremiumPct] = useState(0.8);
+      const [karat, setKarat] = useState('22K');
+      const [makingType, setMakingType] = useState('PERCENTAGE');
+      const [makingVal, setMakingVal] = useState(12);
+
+      const pricing = useMemo(() => {
+        const spotGram = (spotOz || 0) / TROY_OUNCE_IN_GRAMS;
+        const cifInr = spotGram * (fxRate || 0) * (1 + (premiumPct || 0) / 100);
+        const bcd = cifInr * ((bcdPct || 0) / 100);
+        const aidc = cifInr * ((aidcPct || 0) / 100);
+        const landedPreTax = cifInr + bcd + aidc;
+        const bullionGst = landedPreTax * ((gstPct || 0) / 100);
+        const final24k = landedPreTax + bullionGst;
+
+        const mult = PURITY_MULTIPLIERS[karat] || 1;
+        const purityPreTax = landedPreTax * mult;
+        const makingCharge = makingType === 'PERCENTAGE' ? purityPreTax * ((makingVal || 0) / 100) : (makingVal || 0);
+        const taxableRetail = purityPreTax + makingCharge;
+        const compositeGst = taxableRetail * ((gstPct || 0) / 100);
+        const finalConsumer = taxableRetail + compositeGst;
+
+        return {
+          spotGram, cifInr, bcd, aidc, landedPreTax, bullionGst, final24k,
+          purityPreTax, makingCharge, taxableRetail, compositeGst, finalConsumer
+        };
+      }, [spotOz, fxRate, bcdPct, aidcPct, gstPct, premiumPct, karat, makingType, makingVal]);
+
+      return (
+        <div className="min-h-screen">
+          <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <span className="bg-amber-500 text-black font-black text-sm px-2.5 py-1.5 rounded-lg">Au</span>
+              <span className="font-bold tracking-tight text-sm">GOLD PARITY ENGINE (INDIA)</span>
+            </div>
+            <div className="text-xs font-mono text-zinc-400">
+              COMEX: <strong class="text-amber-400">{formatUSD(spotOz)}/oz</strong> | USD/INR: <strong class="text-zinc-200">₹{fxRate.toFixed(2)}</strong>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-5 space-y-6">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300 mb-4">Market Baselines</h2>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="text-zinc-400">Gold Spot (USD/oz)</label>
+                    <input type="number" value={spotOz} onChange={e => setSpotOz(Math.max(0, parseFloat(e.target.value) || 0))} className="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 font-mono text-zinc-100" />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400">USD / INR</label>
+                    <input type="number" step="0.05" value={fxRate} onChange={e => setFxRate(Math.max(0, parseFloat(e.target.value) || 0))} className="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 font-mono text-zinc-100" />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400">BCD Duty (%)</label>
+                    <input type="number" step="0.1" value={bcdPct} onChange={e => setBcdPct(Math.max(0, parseFloat(e.target.value) || 0))} className="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 font-mono text-zinc-100" />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400">AIDC Cess (%)</label>
+                    <input type="number" step="0.1" value={aidcPct} onChange={e => setAidcPct(Math.max(0, parseFloat(e.target.value) || 0))} className="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 font-mono text-zinc-100" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300 mb-4">Retail Hallmark & Craftsmanship</h2>
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {['24K', '22K', '18K', '14K'].map(k => (
+                    <button key={k} onClick={() => setKarat(k)} className={`py-2 rounded-lg text-xs font-bold ${karat === k ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-400'}`}>{k}</button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 text-xs mb-3">
+                  <button onClick={() => { setMakingType('PERCENTAGE'); setMakingVal(12); }} className={`flex-1 py-1.5 rounded-lg border ${makingType === 'PERCENTAGE' ? 'border-amber-500 bg-amber-500/10 text-amber-400' : 'border-zinc-700 text-zinc-400'}`}>Percentage (%)</button>
+                  <button onClick={() => { setMakingType('FIXED_PER_GRAM'); setMakingVal(650); }} className={`flex-1 py-1.5 rounded-lg border ${makingType === 'FIXED_PER_GRAM' ? 'border-amber-500 bg-amber-500/10 text-amber-400' : 'border-zinc-700 text-zinc-400'}`}>Fixed (₹/g)</button>
+                </div>
+
+                {makingType === 'PERCENTAGE' ? (
+                  <div>
+                    <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                      <span>Making Charge</span>
+                      <span className="font-bold text-amber-400">{makingVal}%</span>
+                    </div>
+                    <input type="range" min="0" max="30" step="0.5" value={makingVal} onChange={e => setMakingVal(parseFloat(e.target.value))} className="w-full accent-amber-500" />
+                  </div>
+                ) : (
+                  <input type="number" step="50" value={makingVal} onChange={e => setMakingVal(Math.max(0, parseFloat(e.target.value) || 0))} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs font-mono" />
+                )}
+              </div>
+            </div>
+
+            <div className="lg:col-span-7 space-y-6">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300 mb-4">Statutory Price Waterfall</h2>
+                <div className="divide-y divide-zinc-800 text-xs">
+                  <div className="py-3 flex justify-between">
+                    <span className="text-zinc-400">Assessable Value (CIF):</span>
+                    <span className="font-mono text-zinc-200">{formatINR(pricing.cifInr)}/g</span>
+                  </div>
+                  <div className="py-3 flex justify-between">
+                    <span className="text-zinc-400">Customs Duties (BCD 5% + AIDC 1%):</span>
+                    <span className="font-mono text-zinc-200">+{formatINR(pricing.bcd + pricing.aidc)}/g</span>
+                  </div>
+                  <div className="py-3 flex justify-between">
+                    <span className="text-zinc-400">Pre-Tax Bullion Landed Value:</span>
+                    <span className="font-mono text-zinc-200">{formatINR(pricing.landedPreTax)}/g</span>
+                  </div>
+                  <div className="py-3 flex justify-between font-semibold">
+                    <span className="text-amber-400">24K Bullion Standard (inc. 3% GST):</span>
+                    <span className="font-mono text-amber-400">{formatINR(pricing.final24k * 10)} / 10g</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-xl bg-amber-500/10 border border-amber-500/30 p-5 flex justify-between items-center">
+                  <div>
+                    <div className="text-xs font-bold text-amber-400 uppercase">{karat} Consumer Final Billing</div>
+                    <div className="text-[11px] text-zinc-400">Metal + Making + 3% Composite GST</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-amber-300 font-mono">{formatINR(pricing.finalConsumer)} <span className="text-xs font-normal">/g</span></div>
+                    <div className="text-xs text-zinc-400 font-mono">{formatINR(pricing.finalConsumer * 10)} / 10g</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
